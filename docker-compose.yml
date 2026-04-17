@@ -1,0 +1,94 @@
+services:
+
+  # -------------------- API GATEWAY --------------------
+  api-gateway:
+    build: ./jobfinder-api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - job-service
+      - profile-service
+      - application-service
+
+  # -------------------- JOB SERVICE --------------------
+  job-service:
+    build: ./job-service
+    container_name: job-service
+    ports:
+      - "8087:8087"
+    depends_on:
+      - postgres
+      - kafka
+
+  # -------------------- APPLICATION SERVICE --------------------
+  application-service:
+    build: ./application-service
+    container_name: application-service
+    depends_on:
+      - postgres
+      - kafka
+
+  # -------------------- PROFILE SERVICE --------------------
+  profile-service:
+    build: ./profile-service
+    container_name: profile-service
+    depends_on:
+      - postgres
+
+  # -------------------- NOTIFICATION SERVICE --------------------
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    depends_on:
+      - kafka
+
+  # -------------------- POSTGRES --------------------
+  postgres:
+    image: postgres:15
+    container_name: jobfinder-postgres
+    environment:
+      POSTGRES_DB: jobfinder_jobs_db
+      POSTGRES_USER: yedi
+      POSTGRES_PASSWORD: yedi1235
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # -------------------- ZOOKEEPER --------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+
+  # -------------------- KAFKA --------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # -------------------- KEYCLOAK --------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.1
+    container_name: keycloak
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8280:8080"
+
+volumes:
+  postgres_data:

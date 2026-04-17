@@ -1,0 +1,37 @@
+server:
+  port: 8085
+  tomcat:
+    max-http-form-post-size: 52428800
+
+spring:
+  application:
+    name: application-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/jobfinder_application_db
+    username: yedi
+    password: yedi1235
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  # ⬇️ Moved kafka to be a sibling of jpa, directly under spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+minio:
+  url: http://localhost:9000
+  access-key: admin
+  secret-key: admin123
+  bucket: resumes
