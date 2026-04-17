@@ -10,6 +10,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 @Component
 public class JwtRelayFilter implements GlobalFilter, Ordered {
 
@@ -25,10 +29,24 @@ public class JwtRelayFilter implements GlobalFilter, Ordered {
                     String userId = jwt.getSubject();
                     String email = jwt.getClaimAsString("email");
 
+                    // ⬇️ EXTRACT ROLES HERE
+                    Map<String, Object> realmAccess = jwt.getClaim("realm_access");
+                    List<String> roles = List.of(); // Default empty
+
+                    if (realmAccess != null && realmAccess.get("roles") instanceof List<?> roleList) {
+                        roles = roleList.stream()
+                                .map(Object::toString)
+                                .collect(Collectors.toList());
+                    }
+
+                    // Join roles into a single string, e.g., "USER,ADMIN"
+                    String rolesHeader = String.join(",", roles);
+
                     ServerHttpRequest mutatedRequest = exchange.getRequest()
                             .mutate()
                             .header("X-User-Id", userId)
                             .header("X-User-Email", email)
+                            .header("X-Roles", rolesHeader) // ⬇️ ADD THIS HEADER
                             .build();
 
                     return chain.filter(exchange.mutate()
@@ -39,6 +57,6 @@ public class JwtRelayFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return -1;
+        return -1; // Run early
     }
 }
