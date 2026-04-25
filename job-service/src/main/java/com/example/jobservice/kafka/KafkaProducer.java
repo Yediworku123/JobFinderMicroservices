@@ -13,7 +13,7 @@ public class KafkaProducer {
 
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
 
-    private static final String TOPIC = "notifications"; // ✅ SAME AS APPLICATION SERVICE
+    private static final String TOPIC = "notification-topic"; // ✅ SAME AS APPLICATION SERVICE
 
     public void sendEvent(NotificationEvent event) {
         kafkaTemplate.send(TOPIC, event.getRecipientId(), event);

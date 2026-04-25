@@ -13,7 +13,7 @@ public class KafkaProducer {
 
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
 
-    private static final String TOPIC = "notifications";
+    private static final String TOPIC = "notification-topic";
 
     public void sendEvent(NotificationEvent event) {
         kafkaTemplate.send(TOPIC, event.getRecipientId(), event);

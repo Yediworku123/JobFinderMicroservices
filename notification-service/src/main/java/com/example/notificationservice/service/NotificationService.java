@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.List; // ✅ Make sure this import is there
+import java.util.List;
 
 @Slf4j
 @Service
@@ -35,7 +35,8 @@ public class NotificationService {
                         message,
                         "SYSTEM"
                 );
-                emailService.sendEmail(event.getEmail(), subject, message);
+                // ✅ Use recipientEmail
+                emailService.sendEmail(event.getRecipientEmail(), subject, message);
                 break;
 
             case "JOB_CREATED":
@@ -44,7 +45,8 @@ public class NotificationService {
                         message,
                         "JOB_UPDATE"
                 );
-                emailService.sendEmail(event.getEmail(), subject, message);
+                // ✅ Use recipientEmail
+                emailService.sendEmail(event.getRecipientEmail(), subject, message);
                 break;
 
             case "APPLICATION_SUBMITTED":
@@ -53,7 +55,19 @@ public class NotificationService {
                         message,
                         "APPLICATION_UPDATE"
                 );
-                emailService.sendEmail(event.getEmail(), subject, message);
+                // ✅ Use recipientEmail
+                emailService.sendEmail(event.getRecipientEmail(), subject, message);
+                break;
+
+            // ✅ ADD THIS CASE
+            case "JOB_APPROVED":
+                createNotification(
+                        event.getRecipientId(),
+                        message,
+                        "JOB_UPDATE"
+                );
+                // ✅ Use recipientEmail
+                emailService.sendEmail(event.getRecipientEmail(), "Job Approved!", message);
                 break;
 
             default:

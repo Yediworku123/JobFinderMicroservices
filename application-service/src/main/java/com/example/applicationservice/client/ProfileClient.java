@@ -1,5 +1,6 @@
 package com.example.applicationservice.client;
 
+import com.example.applicationservice.dto.ApiResponse;
 import com.example.applicationservice.dto.ProviderDTO;
 import com.example.applicationservice.config.FeignConfig; // ✅ Import the config
 import org.springframework.cloud.openfeign.FeignClient;
@@ -11,5 +12,5 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface ProfileClient {
 
     @GetMapping("/profile/by-email")
-    ProviderDTO getUserByEmail(@RequestParam("email") String email);
+    ApiResponse<ProviderDTO> getUserByEmail(@RequestParam("email") String email);
 }

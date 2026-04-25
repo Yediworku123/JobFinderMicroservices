@@ -16,22 +16,32 @@ spring:
       ddl-auto: update
     show-sql: true
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          #issuer-uri: http://localhost:8280/realms/jobfindermultiserver
-          spring:
-            kafka:
-              bootstrap-servers: localhost:9092
+  # =========================
+  # KEYCLOAK CONFIG
+  # =========================
+  keycloak:
+    url: ${KEYCLOAK_URL:http://localhost:8280}
+    realm: jobfindermultiserver
+    client-id: profile-service
+    client-secret: ${KEYCLOAK_SECRET:PhdedLBHjvT05Kue6LWRPwoyV8jKaIyr}
 
-              producer:
-                key-serializer: org.apache.kafka.common.serialization.StringSerializer
-                value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  # =========================
+  # KAFKA CONFIG
+  # =========================
+  kafka:
+    bootstrap-servers: localhost:9092
 
-              consumer:
-                group-id: notification-group
-                auto-offset-reset: earliest
-                value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-                properties:
-                  spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+    consumer:
+      group-id: notification-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.example.notificationservice.dto.NotificationEvent
+        spring.json.use.type.headers: false

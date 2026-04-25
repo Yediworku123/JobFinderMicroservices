@@ -1,16 +1,18 @@
 package com.example.applicationservice.controller;
 
-import com.example.applicationservice.client.JobServiceClient;
-import com.example.applicationservice.dto.JobResponseDTO;
+import com.example.applicationservice.dto.ApiResponse;
+import com.example.applicationservice.dto.ApplicationDTO;
+import com.example.applicationservice.dto.JobApplicationDTO;
 import com.example.applicationservice.model.Application;
 import com.example.applicationservice.service.ApplicationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/applications")
@@ -18,59 +20,97 @@ import java.util.List;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
-    private final JobServiceClient jobServiceClient;
 
     // =========================
-    // APPLY
+    // APPLY (POST)
     // =========================
     @PostMapping(value = "/apply", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> apply(
-            @RequestParam String jobId,
-            @RequestParam String email,
-            @RequestParam MultipartFile resume,
-            @RequestParam(required = false) String coverLetter,
-            @RequestHeader("X-User-Id") String userId // ✅ Read from Gateway Header
+    public ResponseEntity<ApiResponse<ApplicationDTO>> apply(
+            // ✅ Use @ModelAttribute to map Form Data to your DTO
+            @ModelAttribute JobApplicationDTO dto,
+            @RequestHeader("X-User-Id") String userId
     ) {
         try {
-
-            if (jobId == null || email == null || resume == null || resume.isEmpty()) {
-                return ResponseEntity.badRequest().body("Missing required fields");
+            // 1. Basic Validation
+            if (dto.getJobId() == null || dto.getEmail() == null || dto.getResume() == null || dto.getResume().isEmpty()) {
+                return ApiResponse.error(HttpStatus.BAD_REQUEST, "Missing required fields");
             }
 
-            Application app = applicationService.applyForJob(
-                    jobId,
-                    email,
-                    userId, // ✅ Pass the userId string
-                    resume,
-                    coverLetter
+            // 2. Call Service
+            Application entity = applicationService.applyForJob(
+                    dto.getJobId(),
+                    dto.getEmail(),
+                    userId,
+                    dto.getResume(),
+                    dto.getCoverLetter()
             );
 
-            return ResponseEntity.ok(app);
+            // 3. Map Entity to DTO
+            ApplicationDTO response = mapToDTO(entity);
+
+            // 4. Return Wrapped Response
+            return ApiResponse.success(response, "Application submitted successfully");
 
         } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body("Error: " + e.getMessage());
+            e.printStackTrace(); // For debugging, use Slf4j logger in production
+            return ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error: " + e.getMessage());
         }
     }
 
     // =========================
-    // GET BY JOB
+    // GET BY JOB ID (PROVIDER VIEW)
     // =========================
     @GetMapping("/job/{jobId}")
-    public ResponseEntity<List<Application>> getByJob(@PathVariable String jobId) {
-        return ResponseEntity.ok(applicationService.getApplicationsForJob(jobId));
+    public ResponseEntity<ApiResponse<List<ApplicationDTO>>> getByJob(@PathVariable String jobId) {
+        try {
+            List<Application> entities = applicationService.getApplicationsForJob(jobId);
+
+            List<ApplicationDTO> dtoList = entities.stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList());
+
+            return ApiResponse.success(dtoList, "Fetched applications for job: " + jobId);
+
+        } catch (Exception e) {
+            return ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
     }
 
     // =========================
-    // GET MY APPLICATIONS
+    // GET MY APPLICATIONS (SEEKER VIEW)
     // =========================
     @GetMapping("/me")
-    public ResponseEntity<List<Application>> getMyApplications(
+    public ResponseEntity<ApiResponse<List<ApplicationDTO>>> getMyApplications(
             @RequestParam String email,
-            @RequestHeader("X-User-Id") String userId // ✅ Read from Gateway Header
+            @RequestHeader("X-User-Id") String userId
     ) {
-        return ResponseEntity.ok(
-                applicationService.getApplicationsByEmail(email, userId)
-        );
+        try {
+            List<Application> entities = applicationService.getApplicationsByEmail(email, userId);
+
+            List<ApplicationDTO> dtoList = entities.stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList());
+
+            return ApiResponse.success(dtoList, "Fetched your applications");
+
+        } catch (Exception e) {
+            return ApiResponse.error(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+
+    // =========================
+    // HELPER MAPPER
+    // =========================
+    private ApplicationDTO mapToDTO(Application entity) {
+        return ApplicationDTO.builder()
+                .id(entity.getId())
+                .jobId(entity.getJobId())
+                .seekerId(entity.getSeekerId())
+                .status(entity.getStatus())
+                .appliedAt(entity.getAppliedAt())
+                .coverLetter(entity.getCoverLetter())
+                .resumeFileUrl(entity.getResume() != null ? entity.getResume().getFileUrl() : null)
+                .resumeFileName(entity.getResume() != null ? entity.getResume().getFileName() : null)
+                .build();
     }
 }

@@ -1,10 +1,16 @@
 package com.example.applicationservice.service;
 
-import com.example.applicationservice.client.*;
-import com.example.applicationservice.dto.*;
+import com.example.applicationservice.client.JobServiceClient;
+import com.example.applicationservice.client.ProfileClient;
+import com.example.applicationservice.dto.ApiResponse; // ✅ ADD THIS IMPORT
+import com.example.applicationservice.dto.JobResponseDTO;
+import com.example.applicationservice.dto.NotificationEvent;
+import com.example.applicationservice.dto.ProviderDTO;
 import com.example.applicationservice.kafka.KafkaProducer;
-import com.example.applicationservice.model.*;
-import com.example.applicationservice.repository.*;
+import com.example.applicationservice.model.Application;
+import com.example.applicationservice.model.Resume;
+import com.example.applicationservice.repository.ApplicationRepository;
+import com.example.applicationservice.repository.ResumeRepository;
 import io.minio.*;
 import io.minio.http.Method;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +32,6 @@ public class ApplicationService {
     private final ApplicationRepository applicationRepository;
     private final ResumeRepository resumeRepository;
     private final KafkaProducer kafkaProducer;
-
     private final ProfileClient profileClient;
     private final JobServiceClient jobServiceClient;
 
@@ -42,7 +47,6 @@ public class ApplicationService {
     @Value("${minio.bucket}")
     private String bucket;
 
-    // ✅ Signature change: Jwt jwt -> String userId
     public Application applyForJob(
             String jobId,
             String email,
@@ -51,9 +55,14 @@ public class ApplicationService {
             String coverLetter
     ) throws Exception {
 
-        // 1. GET USER
-        ProviderDTO user = profileClient.getUserByEmail(email);
-        if (user == null) throw new RuntimeException("User not found");
+        // 1. GET USER (Validation) - ✅ FIX HERE
+        ApiResponse<ProviderDTO> userResponse = profileClient.getUserByEmail(email);
+
+        if (userResponse == null || userResponse.getData() == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        ProviderDTO user = userResponse.getData(); // ✅ EXTRACT DATA
 
         // 2. SECURITY CHECK
         if (!user.getKeycloakId().equals(userId)) {
@@ -67,16 +76,23 @@ public class ApplicationService {
 
         String seekerId = user.getKeycloakId();
 
-        // 4. GET JOB
-        JobResponseDTO job = jobServiceClient.getJobById(jobId);
-        if (job == null || job.getProvider() == null) {
+        // 4. GET JOB (Validation) - ✅ FIX HERE
+        ApiResponse<JobResponseDTO> jobResponse = jobServiceClient.getJobById(jobId);
+
+        if (jobResponse == null || jobResponse.getData() == null) {
+            throw new RuntimeException("Job/provider not found");
+        }
+
+        JobResponseDTO job = jobResponse.getData(); // ✅ EXTRACT DATA
+
+        if (job.getProvider() == null) {
             throw new RuntimeException("Job/provider not found");
         }
 
         String providerId = job.getProvider().getKeycloakId();
         String providerEmail = job.getProvider().getEmail();
 
-        // 5. UPLOAD RESUME
+        // 5. UPLOAD RESUME TO MINIO
         String fileName = UUID.randomUUID() + "_" + resumeFile.getOriginalFilename();
 
         MinioClient minioClient = MinioClient.builder()
@@ -95,16 +111,17 @@ public class ApplicationService {
             );
         }
 
+        // Generate a pre-signed URL (valid for 1 hour)
         String url = minioClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                         .method(Method.GET)
                         .bucket(bucket)
                         .object(fileName)
-                        .expiry(3600)
+                        .expiry(3600) // 1 hour
                         .build()
         );
 
-        // 6. SAVE RESUME
+        // 6. SAVE RESUME RECORD
         Resume resume = resumeRepository.save(
                 Resume.builder()
                         .userId(seekerId)
@@ -114,7 +131,7 @@ public class ApplicationService {
                         .build()
         );
 
-        // 7. SAVE APPLICATION
+        // 7. SAVE APPLICATION RECORD
         Application app = applicationRepository.save(
                 Application.builder()
                         .jobId(jobId)
@@ -126,23 +143,24 @@ public class ApplicationService {
                         .build()
         );
 
-        // 8. NOTIFICATIONS
+        // 8. SEND KAFKA EVENTS (Notifications)
+
+        // Event for Provider
         NotificationEvent providerEvent = new NotificationEvent();
         providerEvent.setType("APPLICATION_SUBMITTED");
         providerEvent.setRecipientId(providerId);
         providerEvent.setRecipientEmail(providerEmail);
         providerEvent.setRole("PROVIDER");
         providerEvent.setMessage("New application received!");
-
         kafkaProducer.sendEvent(providerEvent);
 
+        // Event for Seeker
         NotificationEvent seekerEvent = new NotificationEvent();
         seekerEvent.setType("APPLICATION_SUBMITTED");
         seekerEvent.setRecipientId(seekerId);
         seekerEvent.setRecipientEmail(user.getEmail());
         seekerEvent.setRole("SEEKER");
         seekerEvent.setMessage("You applied successfully!");
-
         kafkaProducer.sendEvent(seekerEvent);
 
         return app;
@@ -152,16 +170,17 @@ public class ApplicationService {
         return applicationRepository.findByJobId(jobId);
     }
 
-    // ✅ Signature change: Jwt jwt -> String userId
     public List<Application> getApplicationsByEmail(String email, String userId) {
+        // ✅ FIX HERE
+        ApiResponse<ProviderDTO> userResponse = profileClient.getUserByEmail(email);
 
-        ProviderDTO user = profileClient.getUserByEmail(email);
-
-        if (user == null) {
+        if (userResponse == null || userResponse.getData() == null) {
             throw new RuntimeException("User not found");
         }
 
-        // SECURITY CHECK AGAIN
+        ProviderDTO user = userResponse.getData();
+
+        // SECURITY CHECK: Ensure the user requesting the list is the actual user
         if (!user.getKeycloakId().equals(userId)) {
             throw new RuntimeException("You cannot view another user's applications");
         }

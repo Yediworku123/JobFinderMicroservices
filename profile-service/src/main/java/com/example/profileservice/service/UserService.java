@@ -1,5 +1,6 @@
 package com.example.profileservice.service;
 
+import com.example.profileservice.config.KeycloakProperties; // ✅ Import Properties
 import com.example.profileservice.dto.*;
 import com.example.profileservice.kafka.KafkaProducer;
 import com.example.profileservice.model.*;
@@ -22,26 +23,22 @@ public class UserService {
     private final SeekerProfileRepository seekerProfileRepository;
     private final CompanyRepository companyRepository;
     private final KafkaProducer kafkaProducer;
-
+    private final KeycloakProperties keycloakProps; // ✅ Inject Properties
     private final RestTemplate restTemplate = new RestTemplate();
-
-    private final String KEYCLOAK_URL = "http://localhost:8280";
-    private final String REALM = "jobfindermultiserver";
-    private final String CLIENT_ID = "profile-service";
-    private final String CLIENT_SECRET = "PhdedLBHjvT05Kue6LWRPwoyV8jKaIyr";
 
     // =========================
     // KEYCLOAK TOKEN
     // =========================
     private String getAdminToken() {
-        String url = KEYCLOAK_URL + "/realms/" + REALM + "/protocol/openid-connect/token";
+        // ✅ USE PROPERTIES
+        String url = keycloakProps.getUrl() + "/realms/" + keycloakProps.getRealm() + "/protocol/openid-connect/token";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
         String body = "grant_type=client_credentials" +
-                "&client_id=" + CLIENT_ID +
-                "&client_secret=" + CLIENT_SECRET;
+                "&client_id=" + keycloakProps.getClientId() +
+                "&client_secret=" + keycloakProps.getClientSecret();
 
         HttpEntity<String> request = new HttpEntity<>(body, headers);
 
@@ -67,7 +64,8 @@ public class UserService {
     // =========================
     private String createUserInKeycloak(RegisterRequest req, String token) {
 
-        String url = KEYCLOAK_URL + "/admin/realms/" + REALM + "/users";
+        // ✅ USE PROPERTIES
+        String url = keycloakProps.getUrl() + "/admin/realms/" + keycloakProps.getRealm() + "/users";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
@@ -100,8 +98,8 @@ public class UserService {
     }
 
     private String getUserIdByEmail(String email, String token) {
-
-        String url = KEYCLOAK_URL + "/admin/realms/" + REALM + "/users?email=" + email;
+        // ✅ USE PROPERTIES
+        String url = keycloakProps.getUrl() + "/admin/realms/" + keycloakProps.getRealm() + "/users?email=" + email;
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
@@ -117,8 +115,8 @@ public class UserService {
     }
 
     private void assignRole(String keycloakId, String roleName, String token) {
-
-        String roleUrl = KEYCLOAK_URL + "/admin/realms/" + REALM + "/roles/" + roleName;
+        // ✅ USE PROPERTIES
+        String roleUrl = keycloakProps.getUrl() + "/admin/realms/" + keycloakProps.getRealm() + "/roles/" + roleName;
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
@@ -130,7 +128,7 @@ public class UserService {
                 Map.class
         );
 
-        String assignUrl = KEYCLOAK_URL + "/admin/realms/" + REALM +
+        String assignUrl = keycloakProps.getUrl() + "/admin/realms/" + keycloakProps.getRealm() +
                 "/users/" + keycloakId + "/role-mappings/realm";
 
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -170,7 +168,7 @@ public class UserService {
             NotificationEvent event = new NotificationEvent();
             event.setType("USER_REGISTERED");
             event.setRecipientId(keycloakId);
-            event.setEmail(user.getEmail());
+            event.setRecipientEmail(user.getEmail());
             event.setRole("SEEKER");
             event.setMessage("🎉 Welcome seeker!");
 
@@ -192,7 +190,7 @@ public class UserService {
             NotificationEvent event = new NotificationEvent();
             event.setType("USER_REGISTERED");
             event.setRecipientId(keycloakId);
-            event.setEmail(user.getEmail());
+            event.setRecipientEmail(user.getEmail());
             event.setRole("PROVIDER");
             event.setMessage("🏢 Welcome provider!");
 
@@ -201,7 +199,7 @@ public class UserService {
     }
 
     // =========================
-    // BUSINESS LOGIC (UNCHANGED)
+    // BUSINESS LOGIC
     // =========================
 
     public SeekerProfile getSeekerProfile(String keycloakId) {

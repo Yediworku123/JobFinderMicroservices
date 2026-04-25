@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface JobRepository extends JpaRepository<Job, UUID> {
     List<Job> findByProviderId(String providerId);
+    List<Job> findByTitleContainingIgnoreCase(String title);
+    List<Job> findByLocationIgnoreCase(String location);
 }
